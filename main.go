@@ -53,6 +53,7 @@ func (mon *githubMonitor) handleGithubWebhook(w http.ResponseWriter, r *http.Req
 func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Request) {
 	ctx, _ := context.WithTimeout(mon.ctx, 5*time.Minute)
 	var columnID, cardID int
+	var sourceColumn, destColumn github.ProjectColumn
 	splitResults := strings.Split(*e.Label.Name, "/")
 	if len(splitResults) != 2 {
 		return
@@ -77,6 +78,7 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 	for _, column := range columns {
 		// Found our column to move into
 		if *column.Name == columnName {
+			destColumn = *column
 			columnID = *column.ID
 		}
 		cards, _, err := mon.client.Projects.ListProjectCards(ctx, *column.ID, nil)
@@ -86,14 +88,23 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 		}
 		for _, card := range cards {
 			if *card.ContentURL == *e.Issue.URL {
+				sourceColumn = *column
 				cardID = *card.ID
 				// We don't want to move cards that are already where they need to be
-				if columnID == *column.ID {
+				if *sourceColumn.ID == *destColumn.ID {
 					return
 				}
 			}
 		}
 	}
+	log.Infof(
+		"%s Moving issue #%v in project %v from %v to %v",
+		r.RequestURI,
+		*e.Issue.Number,
+		*project.Name,
+		*sourceColumn.Name,
+		*destColumn.Name,
+	)
 	_, err = mon.client.Projects.MoveProjectCard(
 		ctx,
 		cardID,
