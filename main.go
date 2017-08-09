@@ -53,6 +53,8 @@ func (mon *githubMonitor) handleGithubWebhook(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// When a user submits an issue to docker/release-tracking we want that issue to
+// automagically have a `triage` label for all open projects.
 func (mon *githubMonitor) handleIssueOpenedEvent(e *github.IssuesEvent, r *http.Request) {
 	ctx, cancel := context.WithTimeout(mon.ctx, 5*time.Minute)
 	defer cancel()
@@ -95,6 +97,20 @@ func (mon *githubMonitor) handleIssueOpenedEvent(e *github.IssuesEvent, r *http.
 	}
 }
 
+// When a user adds a label matching {projectPrefix}/{action} it should move the
+// issue in the corresponding open project to the correct column.
+//
+// Defined label -> column map:
+//   * triage        -> Triage
+//   * cherry-pick   -> Cherry Pick
+//   * cherry-picked -> Cherry Picked
+//
+// NOTE: This should work even if an issue is not in a specified project board
+//
+// NOTE: This should work even for labels outside of the defined label map
+//       For example a mapping of label `17.03.1-ee/bleh` should move that issue
+//       to the bleh column of the open project of 17.03.1-ee-1-rc1 if that column
+//       exists
 func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Request) {
 	ctx, cancel := context.WithTimeout(mon.ctx, 5*time.Minute)
 	defer cancel()
