@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -51,7 +50,8 @@ func (mon *githubMonitor) handleGithubWebhook(w http.ResponseWriter, r *http.Req
 }
 
 func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Request) {
-	ctx, _ := context.WithTimeout(mon.ctx, 5*time.Minute)
+	ctx, cancel := context.WithTimeout(mon.ctx, 5*time.Minute)
+	defer cancel()
 	var columnID, cardID int
 	var sourceColumn, destColumn github.ProjectColumn
 	splitResults := strings.Split(*e.Label.Name, "/")
@@ -169,7 +169,8 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 }
 
 func (mon *githubMonitor) getProject(projectPrefix string, e *github.IssuesEvent) (*github.Project, error) {
-	ctx, _ := context.WithTimeout(mon.ctx, 5*time.Minute)
+	ctx, cancel := context.WithTimeout(mon.ctx, 5*time.Minute)
+	defer cancel()
 	projects, _, err := mon.client.Repositories.ListProjects(
 		ctx,
 		*e.Repo.Owner.Login,
@@ -184,7 +185,7 @@ func (mon *githubMonitor) getProject(projectPrefix string, e *github.IssuesEvent
 			return project, nil
 		}
 	}
-	return nil, errors.New(fmt.Sprintf("No project found with prefix %s", projectPrefix))
+	return nil, fmt.Errorf("No project found with prefix %s", projectPrefix)
 }
 
 func main() {
