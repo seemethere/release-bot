@@ -55,6 +55,7 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 	var columnID, cardID int
 	var sourceColumn, destColumn github.ProjectColumn
 	splitResults := strings.Split(*e.Label.Name, "/")
+	// This is not the label we are looking for
 	if len(splitResults) != 2 {
 		return
 	}
@@ -93,23 +94,75 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 			}
 		}
 	}
-	// TODO: Create project card if it doesn't exist
-	log.Infof(
-		"%s Moving issue #%v in project %v from %v to %v",
-		r.RequestURI,
-		*e.Issue.Number,
-		*project.Name,
-		*sourceColumn.Name,
-		*destColumn.Name,
-	)
-	_, err = mon.client.Projects.MoveProjectCard(
-		ctx,
-		cardID,
-		&github.ProjectCardMoveOptions{
-			Position: "top",
-			ColumnID: columnID,
-		},
-	)
+
+	// destination column doesn't exist
+	if destColumn == (github.ProjectColumn{}) {
+		log.Infof(
+			"%s Requested destination column '%v' does not exist for project '%v'",
+			columnName,
+			*project.Name,
+		)
+	}
+
+	// card does not exist
+	if cardID == 0 {
+		contentType := "Issue"
+		if e.Issue.PullRequestLinks != nil {
+			contentType = "PullRequest"
+		}
+		log.Infof(
+			"%s Creating card for issue #%v in project %v in column '%v'",
+			r.RequestURI,
+			*e.Issue.Number,
+			*destColumn.Name,
+		)
+		_, _, err := mon.client.Projects.CreateProjectCard(
+			ctx,
+			columnID,
+			&github.ProjectCardOptions{
+				ContentID:   *e.Issue.ID,
+				ContentType: contentType,
+			},
+		)
+		if err != nil {
+			log.Errorf(
+				"%s Failed creating card for issue #%v in project %v in column '%v':\n%v",
+				r.RequestURI,
+				*e.Issue.Number,
+				*destColumn.Name,
+				err,
+			)
+		}
+	} else {
+		log.Infof(
+			"%s Moving issue #%v in project %v from '%v' to '%v'",
+			r.RequestURI,
+			*e.Issue.Number,
+			*project.Name,
+			*sourceColumn.Name,
+			*destColumn.Name,
+		)
+		_, err = mon.client.Projects.MoveProjectCard(
+			ctx,
+			cardID,
+			&github.ProjectCardMoveOptions{
+				Position: "top",
+				ColumnID: columnID,
+			},
+		)
+
+		if err != nil {
+			log.Errorf(
+				"%s Move failed for issue #%v in project %v from '%v' to '%v':\n%v",
+				r.RequestURI,
+				*e.Issue.Number,
+				*project.Name,
+				*sourceColumn.Name,
+				*destColumn.Name,
+				err,
+			)
+		}
+	}
 }
 
 func (mon *githubMonitor) getProject(projectPrefix string, e *github.IssuesEvent) (*github.Project, error) {
