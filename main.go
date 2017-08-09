@@ -193,6 +193,7 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 				"%s Failed creating card for issue #%v in project %v in column '%v':\n%v",
 				r.RequestURI,
 				*e.Issue.Number,
+				*project.Name,
 				*destColumn.Name,
 				err,
 			)
