@@ -76,6 +76,9 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 		"cherry-pick":   "Cherry Pick",
 		"cherry-picked": "Cherry Picked",
 	}[labelSuffix]
+	if columnName == "" {
+		columnName = labelSuffix
+	}
 	for _, column := range columns {
 		// Found our column to move into
 		if *column.Name == columnName {
