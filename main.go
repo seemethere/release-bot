@@ -69,10 +69,19 @@ func (mon *githubMonitor) handleIssueOpenedEvent(e *github.IssuesEvent, r *http.
 			return
 		}
 		if matched {
+			projectPrefix, _, err := splitLabel(*label.Name)
+			if err != nil {
+				log.Errorf("%q", err)
+				return
+			}
+			// Only apply the label if there's a corresponding open project
+			if _, err := mon.getProject(projectPrefix, e); err != nil {
+				continue
+			}
 			labelsToApply = append(labelsToApply, *label.Name)
 		}
 	}
-	log.Infof("%q Adding labels %q to issue #%q", r.RequestURI, labelsToApply, *e.Issue.Number)
+	log.Infof("%v Adding labels %v to issue #%v", r.RequestURI, labelsToApply, *e.Issue.Number)
 	_, _, err = mon.client.Issues.AddLabelsToIssue(
 		ctx,
 		*e.Repo.Owner.Login,
@@ -91,13 +100,11 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 	defer cancel()
 	var columnID, cardID int
 	var sourceColumn, destColumn github.ProjectColumn
-	splitResults := strings.Split(*e.Label.Name, "/")
-	// This is not the label we are looking for
-	if len(splitResults) != 2 {
+	projectPrefix, labelSuffix, err := splitLabel(*e.Label.Name)
+	if err != nil {
+		log.Errorf("%q", err)
 		return
 	}
-	projectPrefix := splitResults[0]
-	labelSuffix := splitResults[1]
 	project, err := mon.getProject(projectPrefix, e)
 	if err != nil {
 		log.Errorf("%q", err)
@@ -154,6 +161,7 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 			"%s Creating card for issue #%v in project %v in column '%v'",
 			r.RequestURI,
 			*e.Issue.Number,
+			*project.Name,
 			*destColumn.Name,
 		)
 		_, _, err := mon.client.Projects.CreateProjectCard(
@@ -203,6 +211,14 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 			)
 		}
 	}
+}
+
+func splitLabel(label string) (string, string, error) {
+	splitResults := strings.Split(label, "/")
+	if len(splitResults) != 2 {
+		return "", "", fmt.Errorf("Label does not match pattern {release}/{action}")
+	}
+	return splitResults[0], splitResults[1], nil
 }
 
 func (mon *githubMonitor) getProject(projectPrefix string, e *github.IssuesEvent) (*github.Project, error) {
