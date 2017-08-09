@@ -90,13 +90,10 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 			if *card.ContentURL == *e.Issue.URL {
 				sourceColumn = *column
 				cardID = *card.ID
-				// We don't want to move cards that are already where they need to be
-				if *sourceColumn.ID == *destColumn.ID {
-					return
-				}
 			}
 		}
 	}
+	// TODO: Create project card if it doesn't exist
 	log.Infof(
 		"%s Moving issue #%v in project %v from %v to %v",
 		r.RequestURI,
