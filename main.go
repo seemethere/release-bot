@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -43,9 +44,45 @@ func (mon *githubMonitor) handleGithubWebhook(w http.ResponseWriter, r *http.Req
 	}
 	switch e := event.(type) {
 	case *github.IssuesEvent:
-		if *e.Action == "labeled" {
+		switch *e.Action {
+		case "labeled":
 			go mon.handleLabelEvent(e, r)
+		case "opened":
+			go mon.handleIssueOpenedEvent(e, r)
 		}
+	}
+}
+
+func (mon *githubMonitor) handleIssueOpenedEvent(e *github.IssuesEvent, r *http.Request) {
+	ctx, cancel := context.WithTimeout(mon.ctx, 5*time.Minute)
+	defer cancel()
+	labels, _, err := mon.client.Issues.ListLabels(ctx, *e.Repo.Owner.Login, *e.Repo.Name, nil)
+	if err != nil {
+		log.Errorf("%q", err)
+		return
+	}
+	var labelsToApply []string
+	for _, label := range labels {
+		matched, err := regexp.MatchString(".*/triage", *label.Name)
+		if err != nil {
+			log.Errorf("%q", err)
+			return
+		}
+		if matched {
+			labelsToApply = append(labelsToApply, *label.Name)
+		}
+	}
+	log.Infof("%q Adding labels %q to issue #%q", r.RequestURI, labelsToApply, *e.Issue.Number)
+	_, _, err = mon.client.Issues.AddLabelsToIssue(
+		ctx,
+		*e.Repo.Owner.Login,
+		*e.Repo.Name,
+		*e.Issue.Number,
+		labelsToApply,
+	)
+	if err != nil {
+		log.Errorf("%q", err)
+		return
 	}
 }
 
