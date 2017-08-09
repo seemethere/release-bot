@@ -1,12 +1,12 @@
 hash: d1e61c0c8bfdbf8877928909156fe5fc2e33c0e5efada179dd7b2abb8c64ecda
-updated: 2017-08-08T13:03:23.787897935-07:00
+updated: 2017-08-09T18:07:10.370433356Z
 imports:
 - name: github.com/golang/protobuf
-  version: 8ee79997227bf9b34611aee7946ae64735e6fd93
+  version: 1909bc2f63dc92bb931deace8b8312c4db72d12f
   subpackages:
   - proto
 - name: github.com/google/go-github
-  version: 7a51fb928f52a196d5f31daefb8a489453ef54ff
+  version: f6abac99792615907c13390e7b61b02320aaf5d0
   subpackages:
   - github
 - name: github.com/google/go-querystring
@@ -14,25 +14,26 @@ imports:
   subpackages:
   - query
 - name: github.com/gorilla/context
-  version: 1ea25387ff6f684839d82767c1733ff4d4d15d0a
+  version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
   version: bcd8bc72b08df0f70df986b97f95590779502d31
 - name: github.com/sirupsen/logrus
   version: a3f95b5c423586578a4e099b11a46c2479628cac
 - name: golang.org/x/net
-  version: c427ad74c6d7a814201695e9ffde0c5d400a7674
+  version: 1c05540f6879653db88113bc4a2b70aec4bd491f
   subpackages:
   - context
+  - context/ctxhttp
 - name: golang.org/x/oauth2
-  version: f047394b6d14284165300fd82dad67edb3a4d7f6
+  version: 9a379c6b3e95a790ffc43293c2a78dee0d7b6e20
   subpackages:
   - internal
 - name: golang.org/x/sys
-  version: 8f0908ab3b2457e2e15403d3697c9ef5cb4b57a9
+  version: 89d4068c4f4ccfd051a041f6088b8a7b8ecccb9c
   subpackages:
   - unix
 - name: google.golang.org/appengine
-  version: a2f4131514e563cedfdb6e7d267df9ad48591e93
+  version: c5a90ac045b779001847fec87403f5cba090deae
   subpackages:
   - internal
   - internal/app_identity
