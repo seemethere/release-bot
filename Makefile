@@ -7,6 +7,10 @@ check:
 		--vendor --tests --disable-all \
 		-E gofmt -E vet -E goimports -E golint ./...
 
+.PHONY: build-image
+build-image:
+	docker build -t seemethere/release-bot .
+
 .PHONY: clean
 clean:
 	$(RM) -r build
