@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"regexp"
 
@@ -18,9 +19,63 @@ type Repository struct {
 
 var (
 	githubTokenEnvVariable = "GITHUB_TOKEN"
-	projectName            = kingpin.Arg("projectName", "Name of the project to create, eg: 17.06.1-ce-rc4").String()
+	projectName            = kingpin.Arg("projectName", "Name of the project to create, eg: 17.06.1-ce-rc4").Required().String()
 	releaseRepo            = Repository{Owner: "seemethere", Name: "test-repo"}
 )
+
+func projectExists(owner, name, project string, client *github.Client, ctx context.Context) bool {
+	existingProjects, _, err := client.Repositories.ListProjects(ctx, owner, name, nil)
+	if err != nil {
+		log.Errorf("Could not grab existing projects for %s/%s: %v", owner, name, err)
+		os.Exit(1)
+	}
+	for _, existingProject := range existingProjects {
+		if project == *existingProject.Name {
+			return true
+		}
+	}
+	return false
+}
+
+func createLabels(owner, name, project string, client *github.Client, ctx context.Context) {
+	rc := regexp.MustCompile("-rc.*$")
+	// Creates labels like 17.06.1-ee-1/triage from project names like 17.06.1-ee-1-rc3
+	labelsToCreate := map[string]string{
+		fmt.Sprintf("%s/triage", rc.ReplaceAllString(project, "")):        "#eeeeee",
+		fmt.Sprintf("%s/cherry-pick", rc.ReplaceAllString(project, "")):   "#a98bf3",
+		fmt.Sprintf("%s/cherry-picked", rc.ReplaceAllString(project, "")): "#bfe5bf",
+	}
+	existingLabels, _, err := client.Issues.ListLabels(ctx, owner, name, nil)
+	if err != nil {
+		log.Errorf("Could not grab existing labels for %s/%s: %v", owner, name, err)
+		os.Exit(1)
+	}
+	for _, label := range existingLabels {
+		if labelsToCreate[*label.Name] != "" {
+			delete(labelsToCreate, *label.Name)
+		}
+	}
+	for labelName, color := range labelsToCreate {
+		_, _, err = client.Issues.CreateLabel(ctx, owner, name, &github.Label{Name: &labelName, Color: &color})
+		if err != nil {
+			log.Errorf("Error creating label %s for repo %s/%s: %v", labelName, owner, name, err)
+			os.Exit(1)
+		}
+		log.Infof("Created label %s", labelName)
+	}
+}
+
+func createColumns(projectID int, client *github.Client, ctx context.Context) {
+	columnsToCreate := []string{"Triage", "Cherry Pick", "Cherry Picked"}
+	for _, column := range columnsToCreate {
+		_, _, err := client.Projects.CreateProjectColumn(ctx, projectID, &github.ProjectColumnOptions{Name: column})
+		if err != nil {
+			log.Errorf("Error creating column %s: %v", column, err)
+			os.Exit(1)
+		}
+		log.Infof("Created column %s", column)
+	}
+}
 
 func main() {
 	kingpin.Version("0.0.1")
@@ -29,11 +84,14 @@ func main() {
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: os.Getenv(githubTokenEnvVariable)},
 	)
-	rc := regexp.MustCompile("-rc.*$")
 	client := github.NewClient(oauth2.NewClient(ctx, ts))
+	if projectExists(releaseRepo.Owner, releaseRepo.Name, *projectName, client, ctx) {
+		log.Errorf("Project '%s' already exists for repo %s/%s", projectName, releaseRepo.Owner, releaseRepo.Name)
+		os.Exit(1)
+	}
 	log.Infof("Attempting to create project '%s' at %s/%s", projectName, releaseRepo.Owner, releaseRepo.Name)
 	//TODO: Add a body template for projects
-	client.Repositories.CreateProject(
+	project, _, err := client.Repositories.CreateProject(
 		ctx,
 		releaseRepo.Owner,
 		releaseRepo.Name,
@@ -41,4 +99,10 @@ func main() {
 			Name: *projectName,
 		},
 	)
+	if err != nil {
+		log.Errorf("Error creating project: %v", err)
+		os.Exit(1)
+	}
+	createLabels(releaseRepo.Owner, releaseRepo.Name, *projectName, client, ctx)
+	createColumns(*project.ID, client, ctx)
 }
