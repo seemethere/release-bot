@@ -63,6 +63,15 @@ func (mon *githubMonitor) handleIssueOpenedEvent(e *github.IssuesEvent, r *http.
 		log.Errorf("%q", err)
 		return
 	}
+	appliedLabelsStructs, _, err := mon.client.Issues.ListLabelsByIssue(ctx, *e.Repo.Owner.Login, *e.Repo.Name, *e.Issue.Number, nil)
+	appliedLabels := make(map[string]bool)
+	if err != nil {
+		log.Errorf("%q", err)
+		return
+	}
+	for _, labelStruct := range appliedLabelsStructs {
+		appliedLabels[*labelStruct.Name] = true
+	}
 	var labelsToApply []string
 	for _, label := range labels {
 		matched, err := regexp.MatchString(".*/triage", *label.Name)
@@ -80,20 +89,25 @@ func (mon *githubMonitor) handleIssueOpenedEvent(e *github.IssuesEvent, r *http.
 			if _, err := mon.getProject(projectPrefix, e); err != nil {
 				continue
 			}
-			labelsToApply = append(labelsToApply, *label.Name)
+			if appliedLabels[*label.Name] == false {
+				labelsToApply = append(labelsToApply, *label.Name)
+			}
 		}
 	}
-	log.Infof("%v Adding labels %v to issue #%v", r.RequestURI, labelsToApply, *e.Issue.Number)
-	_, _, err = mon.client.Issues.AddLabelsToIssue(
-		ctx,
-		*e.Repo.Owner.Login,
-		*e.Repo.Name,
-		*e.Issue.Number,
-		labelsToApply,
-	)
-	if err != nil {
-		log.Errorf("%q", err)
-		return
+	// We have labels to apply
+	if len(labelsToApply) > 0 {
+		log.Infof("%v Adding labels %v to issue #%v", r.RequestURI, labelsToApply, *e.Issue.Number)
+		_, _, err = mon.client.Issues.AddLabelsToIssue(
+			ctx,
+			*e.Repo.Owner.Login,
+			*e.Repo.Name,
+			*e.Issue.Number,
+			labelsToApply,
+		)
+		if err != nil {
+			log.Errorf("%q", err)
+			return
+		}
 	}
 }
 
