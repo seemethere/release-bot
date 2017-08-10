@@ -41,9 +41,9 @@ func createLabels(owner, name, project string, client *github.Client, ctx contex
 	rc := regexp.MustCompile("-rc.*$")
 	// Creates labels like 17.06.1-ee-1/triage from project names like 17.06.1-ee-1-rc3
 	labelsToCreate := map[string]string{
-		fmt.Sprintf("%s/triage", rc.ReplaceAllString(project, "")):        "#eeeeee",
-		fmt.Sprintf("%s/cherry-pick", rc.ReplaceAllString(project, "")):   "#a98bf3",
-		fmt.Sprintf("%s/cherry-picked", rc.ReplaceAllString(project, "")): "#bfe5bf",
+		fmt.Sprintf("%s/triage", rc.ReplaceAllString(project, "")):        "eeeeee",
+		fmt.Sprintf("%s/cherry-pick", rc.ReplaceAllString(project, "")):   "a98bf3",
+		fmt.Sprintf("%s/cherry-picked", rc.ReplaceAllString(project, "")): "bfe5bf",
 	}
 	existingLabels, _, err := client.Issues.ListLabels(ctx, owner, name, nil)
 	if err != nil {
