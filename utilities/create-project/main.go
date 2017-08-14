@@ -20,7 +20,8 @@ type Repository struct {
 var (
 	githubTokenEnvVariable = "GITHUB_TOKEN"
 	projectName            = kingpin.Arg("projectName", "Name of the project to create, eg: 17.06.1-ce-rc4").Required().String()
-	releaseRepo            = Repository{Owner: "seemethere", Name: "test-repo"}
+	repoName               = kingpin.Flag("repo", "Name of the repo to point to").Short('r').Default("staging-release-tracking").String()
+	repoOwner              = kingpin.Flag("owner", "Owner of the repo to point to").Short('o').Default("docker").String()
 )
 
 func projectExists(owner, name, project string, client *github.Client, ctx context.Context) bool {
@@ -85,6 +86,7 @@ func main() {
 		&oauth2.Token{AccessToken: os.Getenv(githubTokenEnvVariable)},
 	)
 	client := github.NewClient(oauth2.NewClient(ctx, ts))
+	releaseRepo := Repository{Owner: *repoOwner, Name: *repoName}
 	if projectExists(releaseRepo.Owner, releaseRepo.Name, *projectName, client, ctx) {
 		log.Errorf("Project '%s' already exists for repo %s/%s", projectName, releaseRepo.Owner, releaseRepo.Name)
 		os.Exit(1)

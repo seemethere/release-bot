@@ -6,4 +6,7 @@ COPY . /go/src/github.com/seemethere/release-bot
 WORKDIR /go/src/github.com/seemethere/release-bot
 RUN make clean build
 
-ENTRYPOINT ["/go/src/github.com/seemethere/release-bot/build/release-bot"]
+FROM alpine:latest
+RUN apk --update add ca-certificates
+COPY --from=build /go/src/github.com/seemethere/release-bot/build/release-bot /release-bot
+ENTRYPOINT ["/release-bot"]
