@@ -50,6 +50,11 @@ func (mon *githubMonitor) handleGithubWebhook(w http.ResponseWriter, r *http.Req
 		case "opened":
 			go mon.handleIssueOpenedEvent(e, r)
 		}
+	case *github.ProjectEvent:
+		switch *e.Action {
+		case "created":
+			go mon.handleProjectCreatedEvent(e, r)
+		}
 	}
 }
 
@@ -241,6 +246,53 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 				err,
 			)
 		}
+	}
+}
+
+func (mon *githubMonitor) handleProjectCreatedEvent(e *github.ProjectEvent, r *http.Request) {
+	ctx, cancel := context.WithTimeout(mon.ctx, 5*time.Minute)
+	defer cancel()
+	projectID := *e.Project.ID
+	projectName := *e.Project.Name
+	owner := *e.Repo.Owner.Login
+	name := *e.Repo.Name
+	columnsToCreate := []string{"Triage", "Cherry Pick", "Cherry Picked"}
+	for _, column := range columnsToCreate {
+		_, _, err := mon.client.Projects.CreateProjectColumn(
+			ctx,
+			projectID,
+			&github.ProjectColumnOptions{Name: column},
+		)
+		if err != nil {
+			log.Errorf("Error creating column %s: %v", column, err)
+			return
+		}
+		log.Infof("Created column %s", column)
+	}
+	rc := regexp.MustCompile("-rc.*$")
+	// Creates labels like 17.06.1-ee-1/triage from project names like 17.06.1-ee-1-rc3
+	labelsToCreate := map[string]string{
+		fmt.Sprintf("%s/triage", rc.ReplaceAllString(projectName, "")):        "eeeeee",
+		fmt.Sprintf("%s/cherry-pick", rc.ReplaceAllString(projectName, "")):   "a98bf3",
+		fmt.Sprintf("%s/cherry-picked", rc.ReplaceAllString(projectName, "")): "bfe5bf",
+	}
+	existingLabels, _, err := mon.client.Issues.ListLabels(ctx, owner, name, nil)
+	if err != nil {
+		log.Errorf("Could not grab existing labels for %s/%s: %v", owner, name, err)
+		os.Exit(1)
+	}
+	for _, label := range existingLabels {
+		if labelsToCreate[*label.Name] != "" {
+			delete(labelsToCreate, *label.Name)
+		}
+	}
+	for labelName, color := range labelsToCreate {
+		_, _, err = mon.client.Issues.CreateLabel(ctx, owner, name, &github.Label{Name: &labelName, Color: &color})
+		if err != nil {
+			log.Errorf("Error creating label %s for repo %s/%s: %v", labelName, owner, name, err)
+			os.Exit(1)
+		}
+		log.Infof("Created label %s", labelName)
 	}
 }
 
