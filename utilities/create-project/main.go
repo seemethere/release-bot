@@ -91,7 +91,7 @@ func main() {
 		log.Errorf("Project '%s' already exists for repo %s/%s", projectName, releaseRepo.Owner, releaseRepo.Name)
 		os.Exit(1)
 	}
-	log.Infof("Attempting to create project '%s' at %s/%s", projectName, releaseRepo.Owner, releaseRepo.Name)
+	log.Infof("Attempting to create project '%s' at %s/%s", *projectName, releaseRepo.Owner, releaseRepo.Name)
 	//TODO: Add a body template for projects
 	project, _, err := client.Repositories.CreateProject(
 		ctx,
