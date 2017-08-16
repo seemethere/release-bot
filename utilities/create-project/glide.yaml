@@ -1,4 +1,0 @@
-package: github.com/seemethere/release-bot/utilities/create-project
-import:
-- package: gopkg.in/alecthomas/kingpin.v2
-  version: ~2.2.5
