@@ -21,5 +21,5 @@ build:
 	go build -o build/release-bot main.go
 
 .PHONY: run-dev
-run-dev: clean check build
+run-dev: clean build
 	./build/release-bot -debug
