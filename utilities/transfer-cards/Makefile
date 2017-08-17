@@ -11,3 +11,7 @@ clean:
 
 build:
 	go build -o build/transfer-cards main.go
+
+.PHONY: build-image
+build-image:
+	docker build -t seemethere/transfer-cards .
