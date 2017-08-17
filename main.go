@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ var (
 	webhookSecretEnvVariable = "RELEASE_BOT_WEBHOOK_SECRET"
 	githubTokenEnvVariable   = "RELEASE_BOT_GITHUB_TOKEN"
 	debugModeEnvVariable     = "RELEASE_BOT_DEBUG"
+	rc                       = regexp.MustCompile("-rc.*$")
 )
 
 type githubMonitor struct {
@@ -54,6 +56,11 @@ func (mon *githubMonitor) handleGithubWebhook(w http.ResponseWriter, r *http.Req
 		switch *e.Action {
 		case "created":
 			go mon.handleProjectCreatedEvent(e, r)
+		}
+	case *github.ProjectCardEvent:
+		switch *e.Action {
+		case "deleted":
+			go mon.handleProjectCardDeletedEvent(e, r)
 		}
 	}
 }
@@ -184,6 +191,12 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 			columnName,
 			*project.Name,
 		)
+		return
+	}
+
+	if *sourceColumn.ID == *destColumn.ID {
+		log.Infof("%s Card for issue #%v is already where it needs to be", r.RequestURI, *e.Issue.Number)
+		return
 	}
 
 	// card does not exist
@@ -269,7 +282,6 @@ func (mon *githubMonitor) handleProjectCreatedEvent(e *github.ProjectEvent, r *h
 		}
 		log.Infof("Created column %s", column)
 	}
-	rc := regexp.MustCompile("-rc.*$")
 	// Creates labels like 17.06.1-ee-1/triage from project names like 17.06.1-ee-1-rc3
 	labelsToCreate := map[string]string{
 		fmt.Sprintf("%s/triage", rc.ReplaceAllString(projectName, "")):        "eeeeee",
@@ -294,6 +306,55 @@ func (mon *githubMonitor) handleProjectCreatedEvent(e *github.ProjectEvent, r *h
 		}
 		log.Infof("Created label %s", labelName)
 	}
+}
+
+func (mon *githubMonitor) handleProjectCardDeletedEvent(e *github.ProjectCardEvent, r *http.Request) {
+	ctx, cancel := context.WithTimeout(mon.ctx, 5*time.Minute)
+	defer cancel()
+	project, err := mon.getRelatedProject(ctx, e.ProjectCard)
+	if err != nil {
+		log.Errorf("Error getting project related to card: %v", err)
+		return
+	}
+	labelPrefix := rc.ReplaceAllString(*project.Name, "")
+	issueBits := strings.Split(*e.ProjectCard.ContentURL, "/")
+	issueNum, err := strconv.Atoi(issueBits[len(issueBits)-1])
+	if err != nil {
+		log.Errorf("%v", err)
+		return
+	}
+	// Creates labels like 17.06.1-ee-1/triage from project names like 17.06.1-ee-1-rc3
+	labelsToDelete := []string{
+		fmt.Sprintf("%s/triage", labelPrefix),
+		fmt.Sprintf("%s/cherry-pick", labelPrefix),
+		fmt.Sprintf("%s/cherry-picked", labelPrefix),
+	}
+	for _, label := range labelsToDelete {
+		log.Infof("Deleting label %s for issue %s/%s#%d", label, *e.Repo.Owner.Login, *e.Repo.Name, issueNum)
+		_, err = mon.client.Issues.RemoveLabelForIssue(ctx, *e.Repo.Owner.Login, *e.Repo.Name, issueNum, label)
+	}
+}
+
+func (mon *githubMonitor) getRelatedProject(ctx context.Context, card *github.ProjectCard) (*github.Project, error) {
+	columnBits := strings.Split(*card.ColumnURL, "/")
+	columnID, err := strconv.Atoi(columnBits[len(columnBits)-1])
+	if err != nil {
+		return nil, err
+	}
+	column, _, err := mon.client.Projects.GetProjectColumn(ctx, columnID)
+	if err != nil {
+		return nil, err
+	}
+	projectBits := strings.Split(*column.ProjectURL, "/")
+	projectID, err := strconv.Atoi(projectBits[len(projectBits)-1])
+	if err != nil {
+		return nil, err
+	}
+	project, _, err := mon.client.Projects.GetProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	return project, nil
 }
 
 func splitLabel(label string) (string, string, error) {

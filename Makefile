@@ -5,6 +5,7 @@ check:
 		-w /go/src/github.com/seemethere/release-bot \
 		dnephin/gometalinter \
 		--vendor --tests --disable-all \
+		--exclude utilities \
 		-E gofmt -E vet -E goimports -E golint ./...
 
 .PHONY: build-image
