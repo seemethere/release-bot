@@ -61,6 +61,8 @@ func (mon *githubMonitor) handleGithubWebhook(w http.ResponseWriter, r *http.Req
 		switch *e.Action {
 		case "deleted":
 			go mon.handleProjectCardDeletedEvent(e, r)
+		case "created", "moved":
+			go mon.handleProjectCardChangedEvent(e, r)
 		}
 	}
 }
@@ -195,7 +197,7 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 	}
 
 	if *sourceColumn.ID == *destColumn.ID {
-		log.Infof("%s Card for issue #%v is already where it needs to be", r.RequestURI, *e.Issue.Number)
+		log.Debugf("%s Card for issue #%v is already where it needs to be", r.RequestURI, *e.Issue.Number)
 		return
 	}
 
@@ -335,13 +337,85 @@ func (mon *githubMonitor) handleProjectCardDeletedEvent(e *github.ProjectCardEve
 	}
 }
 
-func (mon *githubMonitor) getRelatedProject(ctx context.Context, card *github.ProjectCard) (*github.Project, error) {
+func (mon *githubMonitor) handleProjectCardChangedEvent(e *github.ProjectCardEvent, r *http.Request) {
+	ctx, cancel := context.WithTimeout(mon.ctx, 5*time.Minute)
+	defer cancel()
+	column, err := mon.getRelatedColumn(ctx, e.ProjectCard)
+	if err != nil {
+		log.Errorf("Error getting column related to card %s", *e.ProjectCard.URL)
+		return
+	}
+	project, err := mon.getRelatedProject(ctx, e.ProjectCard)
+	if err != nil {
+		log.Errorf("Error getting project related to card %s", *e.ProjectCard.URL)
+		return
+	}
+	labelPrefix := rc.ReplaceAllString(*project.Name, "")
+	labelsToDelete := []string{
+		fmt.Sprintf("%s/triage", labelPrefix),
+		fmt.Sprintf("%s/cherry-pick", labelPrefix),
+		fmt.Sprintf("%s/cherry-picked", labelPrefix),
+	}
+	columnName := map[string]string{
+		"Triage":        "triage",
+		"Cherry Pick":   "cherry-pick",
+		"Cherry Picked": "cherry-picked",
+	}[*column.Name]
+	issueBits := strings.Split(*e.ProjectCard.ContentURL, "/")
+	issueNum, err := strconv.Atoi(issueBits[len(issueBits)-1])
+	if err != nil {
+		log.Errorf("%v", err)
+		return
+	}
+	appliedLabelsStructs, _, err := mon.client.Issues.ListLabelsByIssue(ctx, *e.Repo.Owner.Login, *e.Repo.Name, issueNum, nil)
+	appliedLabels := make(map[string]bool)
+	if err != nil {
+		log.Errorf("%q", err)
+		return
+	}
+	for _, labelStruct := range appliedLabelsStructs {
+		appliedLabels[*labelStruct.Name] = true
+	}
+	for _, label := range labelsToDelete {
+		// Only remove labels that don't relate to our column name
+		if label == fmt.Sprintf("%s/%s", labelPrefix, columnName) {
+			if !appliedLabels[label] {
+				_, _, err := mon.client.Issues.AddLabelsToIssue(ctx, *e.Repo.Owner.Login, *e.Repo.Name, issueNum, []string{label})
+				if err != nil {
+					log.Errorf("Error applying label %s from %s/%s#%d: %v", label, *e.Repo.Owner.Login, *e.Repo.Name, issueNum, err)
+				}
+				log.Infof("Added label %s to %s/%s#%d", label, *e.Repo.Owner.Login, *e.Repo.Name, issueNum)
+			}
+		} else {
+			if appliedLabels[label] {
+				resp, err := mon.client.Issues.RemoveLabelForIssue(ctx, *e.Repo.Owner.Login, *e.Repo.Name, issueNum, label)
+				// Most errors occur when label does not exist
+				if resp.StatusCode == 404 && err != nil {
+					log.Debugf("Label %s for %s/%s#%d not found moving on...", label, *e.Repo.Owner.Login, *e.Repo.Name, issueNum)
+				} else if err != nil {
+					log.Errorf("Error removing label %s from %s/%s#%d: %v", label, *e.Repo.Owner.Login, *e.Repo.Name, issueNum, err)
+				}
+				log.Infof("Removed label %s from %s/%s#%d", label, *e.Repo.Owner.Login, *e.Repo.Name, issueNum)
+			}
+		}
+	}
+}
+
+func (mon *githubMonitor) getRelatedColumn(ctx context.Context, card *github.ProjectCard) (*github.ProjectColumn, error) {
 	columnBits := strings.Split(*card.ColumnURL, "/")
 	columnID, err := strconv.Atoi(columnBits[len(columnBits)-1])
 	if err != nil {
 		return nil, err
 	}
 	column, _, err := mon.client.Projects.GetProjectColumn(ctx, columnID)
+	if err != nil {
+		return nil, err
+	}
+	return column, nil
+}
+
+func (mon *githubMonitor) getRelatedProject(ctx context.Context, card *github.ProjectCard) (*github.Project, error) {
+	column, err := mon.getRelatedColumn(ctx, card)
 	if err != nil {
 		return nil, err
 	}
