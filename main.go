@@ -195,10 +195,11 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 		)
 		return
 	}
-
-	if *sourceColumn.ID == *destColumn.ID {
-		log.Debugf("%s Card for issue #%v is already where it needs to be", r.RequestURI, *e.Issue.Number)
-		return
+	if sourceColumn != (github.ProjectColumn{}) {
+		if *sourceColumn.ID == *destColumn.ID {
+			log.Debugf("%s Card for issue #%v is already where it needs to be", r.RequestURI, *e.Issue.Number)
+			return
+		}
 	}
 
 	// card does not exist
