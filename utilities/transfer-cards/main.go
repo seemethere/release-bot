@@ -102,10 +102,9 @@ func moveIssues(client *github.Client, ctx context.Context, sourceProject, destP
 					log.Errorf("Error deleting project card %s: %v", *card.URL, err)
 					os.Exit(1)
 				}
-				_, _, err = client.Projects.CreateProjectCard(ctx, destColumnID, &github.ProjectCardOptions{ContentID: *relatedIssue.ID, ContentType: "Issue"})
-				if err != nil {
+				_, resp, err := client.Projects.CreateProjectCard(ctx, destColumnID, &github.ProjectCardOptions{ContentID: *relatedIssue.ID, ContentType: "Issue"})
+				if resp.StatusCode != 402 && err != nil {
 					log.Errorf("Error creating project card for issue #%d: %v", *relatedIssue.Number, err)
-					os.Exit(1)
 				}
 			}
 			log.Infof("%s%s/%s -> %s/%s: #%d", prefix, *sourceProject.Name, column, *destProject.Name, column, *relatedIssue.Number)
