@@ -289,6 +289,7 @@ func (mon *githubMonitor) handleProjectCreatedEvent(e *github.ProjectEvent, r *h
 		fmt.Sprintf("%s/cherry-pick", rc.ReplaceAllString(projectName, "")):   "a98bf3",
 		fmt.Sprintf("%s/cherry-picked", rc.ReplaceAllString(projectName, "")): "bfe5bf",
 	}
+	// TODO: Add body for label filtering
 	existingLabels, _, err := mon.client.Issues.ListLabels(ctx, owner, name, nil)
 	if err != nil {
 		log.Errorf("Could not grab existing labels for %s/%s: %v", owner, name, err)
