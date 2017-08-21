@@ -53,7 +53,24 @@ func getRelatedIssue(card *github.ProjectCard, issues []*github.Issue) (*github.
 			return issue, nil
 		}
 	}
-	return nil, fmt.Errorf("card %s not related to an existing issue", *card.URL)
+	return nil, fmt.Errorf("card %s not related to an existing issue with content url %s", *card.URL, *card.ContentURL)
+}
+
+func allIssues(client *github.Client, ctx context.Context) ([]*github.Issue, error) {
+	opt := &github.IssueListByRepoOptions{}
+	var issues []*github.Issue
+	for {
+		issuesByPage, resp, err := client.Issues.ListByRepo(ctx, *repoOwner, *repoName, opt)
+		if err != nil {
+			return nil, err
+		}
+		issues = append(issues, issuesByPage...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	return issues, nil
 }
 
 func moveIssues(client *github.Client, ctx context.Context, sourceProject, destProject *github.Project, columns []string) {
@@ -67,7 +84,7 @@ func moveIssues(client *github.Client, ctx context.Context, sourceProject, destP
 		log.Errorf("Error grabbing columns for project %s: %v", *destProject.Name, err)
 		os.Exit(1)
 	}
-	issues, _, err := client.Issues.ListByRepo(ctx, *repoOwner, *repoName, nil)
+	issues, err := allIssues(client, ctx)
 	if err != nil {
 		log.Errorf("Error grabbing issues for repo: %v", err)
 		os.Exit(1)
