@@ -67,12 +67,36 @@ func (mon *githubMonitor) handleGithubWebhook(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// Hey why is this one necessary?
+// Github decided to paginate their results which leads us to having to do
+// boilerplate code like the one below!
+// Returns all labels associated with a repo. Maybe this could be optimized
+// later by having a cache that expires?
+func (mon *githubMonitor) allLabels(name, owner string) ([]*github.Label, error) {
+	ctx, cancel := context.WithTimeout(mon.ctx, 5*time.Minute)
+	defer cancel()
+	opt := &github.ListOptions{}
+	var labels []*github.Label
+	for {
+		labelsByPage, resp, err := mon.client.Issues.ListLabels(ctx, name, owner, opt)
+		if err != nil {
+			return nil, err
+		}
+		labels = append(labels, labelsByPage...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	return labels, nil
+}
+
 // When a user submits an issue to docker/release-tracking we want that issue to
 // automagically have a `triage` label for all open projects.
 func (mon *githubMonitor) handleIssueOpenedEvent(e *github.IssuesEvent, r *http.Request) {
 	ctx, cancel := context.WithTimeout(mon.ctx, 5*time.Minute)
 	defer cancel()
-	labels, _, err := mon.client.Issues.ListLabels(ctx, *e.Repo.Owner.Login, *e.Repo.Name, nil)
+	labels, err := mon.allLabels(*e.Repo.Name, *e.Repo.Owner.Login)
 	if err != nil {
 		log.Errorf("%q", err)
 		return
@@ -290,10 +314,10 @@ func (mon *githubMonitor) handleProjectCreatedEvent(e *github.ProjectEvent, r *h
 		fmt.Sprintf("%s/cherry-picked", rc.ReplaceAllString(projectName, "")): "bfe5bf",
 	}
 	// TODO: Add body for label filtering
-	existingLabels, _, err := mon.client.Issues.ListLabels(ctx, owner, name, nil)
+	existingLabels, err := mon.allLabels(owner, name)
 	if err != nil {
 		log.Errorf("Could not grab existing labels for %s/%s: %v", owner, name, err)
-		os.Exit(1)
+		return
 	}
 	for _, label := range existingLabels {
 		if labelsToCreate[*label.Name] != "" {
@@ -304,7 +328,7 @@ func (mon *githubMonitor) handleProjectCreatedEvent(e *github.ProjectEvent, r *h
 		_, _, err = mon.client.Issues.CreateLabel(ctx, owner, name, &github.Label{Name: &labelName, Color: &color})
 		if err != nil {
 			log.Errorf("Error creating label %s for repo %s/%s: %v", labelName, owner, name, err)
-			os.Exit(1)
+			return
 		}
 		log.Infof("Created label %s", labelName)
 	}
