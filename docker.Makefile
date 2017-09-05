@@ -19,4 +19,4 @@ run-dev:
 		-e RELEASE_BOT_GITHUB_TOKEN \
 		-e RELEASE_BOT_DEBUG="TRUE" \
 		-p 8090:8080 \
-		$(DOCKER_IMAGE)
+		seemethere/release-bot
