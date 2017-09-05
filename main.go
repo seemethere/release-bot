@@ -78,7 +78,7 @@ func (mon *githubMonitor) allLabels(name, owner string) ([]*github.Label, error)
 	opt := &github.ListOptions{}
 	var labels []*github.Label
 	for {
-		labelsByPage, resp, err := mon.client.Issues.ListLabels(ctx, name, owner, opt)
+		labelsByPage, resp, err := mon.client.Issues.ListLabels(ctx, owner, name, opt)
 		if err != nil {
 			return nil, err
 		}
