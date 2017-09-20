@@ -25,7 +25,7 @@ var (
 
 func getProject(client *github.Client, ctx context.Context, projectName string) (*github.Project, error) {
 	log.Debugf("Attempting to find project %s for repo %s/%s", projectName, *repoOwner, *repoName)
-	projects, _, err := client.Repositories.ListProjects(ctx, *repoOwner, *repoName, &github.ProjectListOptions{State: "all"})
+	projects, _, err := client.Repositories.ListProjects(ctx, *repoOwner, *repoName, &github.ProjectListOptions{State: "open"})
 	if err != nil {
 		log.Errorf("Could not grab existing projects for %s/%s: %v", *repoOwner, *repoName, err)
 		os.Exit(1)
