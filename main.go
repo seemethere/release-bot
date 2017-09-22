@@ -51,6 +51,8 @@ func (mon *githubMonitor) handleGithubWebhook(w http.ResponseWriter, r *http.Req
 			go mon.handleLabelEvent(e, r)
 		case "opened":
 			go mon.handleIssueOpenedEvent(e, r)
+		case "unlabeled":
+			go mon.handleUnlabelEvent(e, r)
 		}
 	case *github.ProjectEvent:
 		switch *e.Action {
@@ -283,6 +285,54 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 				*destColumn.Name,
 				err,
 			)
+		}
+	}
+}
+
+func (mon *githubMonitor) handleUnlabelEvent(e *github.IssuesEvent, r *http.Request) {
+	ctx, cancel := context.WithTimeout(mon.ctx, 5*time.Minute)
+	defer cancel()
+	var cardID int
+	projectPrefix, labelSuffix, err := splitLabel(*e.Label.Name)
+	if err != nil {
+		log.Errorf("%q", err)
+		return
+	}
+	project, err := mon.getProject(projectPrefix, e)
+	if err != nil {
+		log.Errorf("%q", err)
+		return
+	}
+	columns, _, err := mon.client.Projects.ListProjectColumns(ctx, *project.ID, nil)
+	if err != nil {
+		log.Errorf("%q", err)
+		return
+	}
+	columnName := map[string]string{
+		"triage":        "Triage",
+		"cherry-pick":   "Cherry Pick",
+		"cherry-picked": "Cherry Picked",
+	}[labelSuffix]
+	if columnName == "" {
+		columnName = labelSuffix
+	}
+	for _, column := range columns {
+		// Found our column to move into
+		cards, _, err := mon.client.Projects.ListProjectCards(ctx, *column.ID, nil)
+		if err != nil {
+			log.Errorf("%q", err)
+			return
+		}
+		for _, card := range cards {
+			if *card.ContentURL == *e.Issue.URL {
+					cardID = *card.ID
+					_, err := mon.client.Projects.DeleteProjectCard(ctx, cardID)
+					if err != nil {
+						log.Error("%q", err)
+						return
+					}
+					return
+			}
 		}
 	}
 }
