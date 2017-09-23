@@ -25,15 +25,23 @@ var (
 
 func getProject(client *github.Client, ctx context.Context, projectName string) (*github.Project, error) {
 	log.Debugf("Attempting to find project %s for repo %s/%s", projectName, *repoOwner, *repoName)
-	projects, _, err := client.Repositories.ListProjects(ctx, *repoOwner, *repoName, &github.ProjectListOptions{State: "open"})
-	if err != nil {
-		log.Errorf("Could not grab existing projects for %s/%s: %v", *repoOwner, *repoName, err)
-		os.Exit(1)
-	}
-	for _, project := range projects {
-		if *project.Name == projectName {
-			return project, nil
+
+	opt := &github.ProjectListOptions{State: "all"}
+	for {
+		projects, resp, err := client.Repositories.ListProjects(ctx, *repoOwner, *repoName, opt)
+		if err != nil {
+			log.Errorf("Could not grab existing projects for %s/%s: %v", *repoOwner, *repoName, err)
+			os.Exit(1)
 		}
+		for _, project := range projects {
+			if *project.Name == projectName {
+				return project, nil
+			}
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
 	}
 	return nil, fmt.Errorf("project '%s' not found in repo %s/%s", projectName, *repoOwner, *repoName)
 }
