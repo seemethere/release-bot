@@ -1,5 +1,5 @@
 hash: 5aea603ee6b132d0e3e8c26e56f617403fd799cca7500b09e957f3f208b20b47
-updated: 2017-09-22T23:57:13.825673232Z
+updated: 2017-09-23T00:01:54.443418813Z
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -43,11 +43,9 @@ imports:
   version: 24e4144ec923c2374f6b06610c0df16a9222c3d9
   subpackages:
   - internal
-  - internal/app_identity
   - internal/base
   - internal/datastore
   - internal/log
-  - internal/modules
   - internal/remote_api
   - internal/urlfetch
   - urlfetch

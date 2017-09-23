@@ -15,3 +15,10 @@ build:
 .PHONY: build-image
 build-image:
 	docker build -t seemethere/transfer-cards .
+
+.PHONY: clean-vendor
+clean-vendor:
+	$(RM) -rf vendor
+
+vendor:
+	$(DOCKER_RUN) -i golang:1.8.3 sh -c "curl -fsSL https://glide.sh/get | sh; glide update"
