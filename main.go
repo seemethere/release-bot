@@ -289,6 +289,7 @@ func (mon *githubMonitor) handleLabelEvent(e *github.IssuesEvent, r *http.Reques
 	}
 }
 
+// Remove the project card of an issue when the label connecting it to the project is removed
 func (mon *githubMonitor) handleUnlabelEvent(e *github.IssuesEvent, r *http.Request) {
 	ctx, cancel := context.WithTimeout(mon.ctx, 5*time.Minute)
 	defer cancel()
@@ -317,6 +318,9 @@ func (mon *githubMonitor) handleUnlabelEvent(e *github.IssuesEvent, r *http.Requ
 		columnName = labelSuffix
 	}
 	for _, column := range columns {
+		if *column.Name != columnName {
+			continue
+		}
 		// Found our column to move into
 		cards, _, err := mon.client.Projects.ListProjectCards(ctx, *column.ID, nil)
 		if err != nil {
