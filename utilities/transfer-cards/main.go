@@ -81,6 +81,30 @@ func allIssues(client *github.Client, ctx context.Context) ([]*github.Issue, err
 	return issues, nil
 }
 
+func transferCards(client *github.Client, ctx context.Context, sourceProject, destProject *github.Project, sourceCards []*github.ProjectCard, issues []*github.Issue, destColumnID int, column string) {
+	for _, card := range sourceCards {
+		relatedIssue, err := getRelatedIssue(card, issues)
+		if err != nil {
+			log.Errorf("%v", err)
+			os.Exit(1)
+		}
+		prefix := "(dryrun) "
+		if !*dryrun {
+			prefix = ""
+			_, err = client.Projects.DeleteProjectCard(ctx, *card.ID)
+			if err != nil {
+				log.Errorf("Error deleting project card %d: %v", *relatedIssue.Number, err)
+				os.Exit(1)
+			}
+			_, resp, err := client.Projects.CreateProjectCard(ctx, destColumnID, &github.ProjectCardOptions{ContentID: *relatedIssue.ID, ContentType: "Issue"})
+			if resp.StatusCode != 402 && err != nil {
+				log.Errorf("Error creating project card for issue #%d: %v", *relatedIssue.Number, err)
+			}
+		}
+		log.Infof("%s%s/%s -> %s/%s: #%d", prefix, *sourceProject.Name, column, *destProject.Name, column, *relatedIssue.Number)
+	}
+}
+
 func moveIssues(client *github.Client, ctx context.Context, sourceProject, destProject *github.Project, columns []string) {
 	sourceColumns, _, err := client.Projects.ListProjectColumns(ctx, *sourceProject.ID, nil)
 	if err != nil {
@@ -98,6 +122,7 @@ func moveIssues(client *github.Client, ctx context.Context, sourceProject, destP
 		os.Exit(1)
 	}
 	for _, column := range columns {
+		var p0Cards, p1Cards, p2Cards, noPCards []*github.ProjectCard
 		sourceColumnID, err := getColumnID(column, sourceColumns)
 		if err != nil {
 			log.Errorf("Source %v", err)
@@ -115,25 +140,32 @@ func moveIssues(client *github.Client, ctx context.Context, sourceProject, destP
 		}
 		for _, card := range sourceCards {
 			relatedIssue, err := getRelatedIssue(card, issues)
+			var priority string
 			if err != nil {
 				log.Errorf("%v", err)
 				os.Exit(1)
 			}
-			prefix := "(dryrun) "
-			if !*dryrun {
-				prefix = ""
-				_, err = client.Projects.DeleteProjectCard(ctx, *card.ID)
-				if err != nil {
-					log.Errorf("Error deleting project card %s: %v", *card.URL, err)
-					os.Exit(1)
-				}
-				_, resp, err := client.Projects.CreateProjectCard(ctx, destColumnID, &github.ProjectCardOptions{ContentID: *relatedIssue.ID, ContentType: "Issue"})
-				if resp.StatusCode != 402 && err != nil {
-					log.Errorf("Error creating project card for issue #%d: %v", *relatedIssue.Number, err)
+			for _, label := range relatedIssue.Labels {
+				if strings.Contains(*label.Name, "priority") {
+					priority_label := strings.Split(*label.Name, "/")
+					priority = priority_label[1]
 				}
 			}
-			log.Infof("%s%s/%s -> %s/%s: #%d", prefix, *sourceProject.Name, column, *destProject.Name, column, *relatedIssue.Number)
+			switch priority {
+			case "p0":
+				p0Cards = append(p0Cards, card)
+			case "p1":
+				p1Cards = append(p1Cards, card)
+			case "p2":
+				p2Cards = append(p2Cards, card)
+			default:
+				noPCards = append(noPCards, card)
+			}
 		}
+		transferCards(client, ctx, sourceProject, destProject, p2Cards, issues, destColumnID, column)
+		transferCards(client, ctx, sourceProject, destProject, p1Cards, issues, destColumnID, column)
+		transferCards(client, ctx, sourceProject, destProject, p0Cards, issues, destColumnID, column)
+		transferCards(client, ctx, sourceProject, destProject, noPCards, issues, destColumnID, column)
 	}
 }
 
