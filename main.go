@@ -404,14 +404,25 @@ func (mon *githubMonitor) handleProjectCardDeletedEvent(e *github.ProjectCardEve
 		return
 	}
 	// Creates labels like 17.06.1-ee-1/triage from project names like 17.06.1-ee-1-rc3
-	labelsToDelete := []string{
-		fmt.Sprintf("%s/triage", labelPrefix),
-		fmt.Sprintf("%s/cherry-pick", labelPrefix),
-		fmt.Sprintf("%s/cherry-picked", labelPrefix),
+	labelsToDelete := map[string] bool{
+		fmt.Sprintf("%s/triage", labelPrefix): true,
+		fmt.Sprintf("%s/cherry-pick", labelPrefix): true,
+		fmt.Sprintf("%s/cherry-picked", labelPrefix): true,
 	}
-	for _, label := range labelsToDelete {
-		log.Infof("Deleting label %s for issue %s/%s#%d", label, *e.Repo.Owner.Login, *e.Repo.Name, issueNum)
-		_, err = mon.client.Issues.RemoveLabelForIssue(ctx, *e.Repo.Owner.Login, *e.Repo.Name, issueNum, label)
+	issueLabels, _, err := mon.client.Issues.ListLabelsByIssue(ctx, *e.Repo.Owner.Login, *e.Repo.Name, issueNum, nil)
+	if err != nil {
+		log.Errorf("Error getting labels for issue %s/%s$d", *e.Repo.Owner.Login, *e.Repo.Name, issueNum)
+		return
+	}
+	for _, label := range issueLabels {
+		if labelsToDelete[*label.Name] {
+			log.Infof("Deleting label %s for issue %s/%s#%d", label, *e.Repo.Owner.Login, *e.Repo.Name, issueNum)
+			_, err = mon.client.Issues.RemoveLabelForIssue(ctx, *e.Repo.Owner.Login, *e.Repo.Name, issueNum, *label.Name)
+			if err != nil {
+				log.Errorf("Error deleting label %s for issue %s/%s/#%d", *label.Name, *e.Repo.Owner.Login, *e.Repo.Name, *label.Name)
+			}
+		}
+
 	}
 }
 

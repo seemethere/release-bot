@@ -148,23 +148,33 @@ func moveIssues(client *github.Client, ctx context.Context, sourceProject, destP
 				prefix := "(dryrun) "
 				if !*dryrun {
 					prefix = ""
+					log.Debugf("Deleting project card for issue #%d from %s", *relatedIssue.Number, *sourceProjectName)
 					_, err = client.Projects.DeleteProjectCard(ctx, *card.ID)
 					if err != nil {
 						log.Errorf("Error deleting project card %d: %v", *relatedIssue.Number, err)
 						os.Exit(1)
 					}
+					log.Debugf("Creating new project card for issue #%d in %s", *relatedIssue.Number, *destProjectName)
 					_, resp, err := client.Projects.CreateProjectCard(ctx, destColumnID, &github.ProjectCardOptions{ContentID: *relatedIssue.ID, ContentType: "Issue"})
 					if resp.StatusCode != 402 && err != nil {
 						log.Errorf("Error creating project card for issue #%d: %v", *relatedIssue.Number, err)
 					}
 				}
-			log.Infof("%s%s/%s -> %s/%s: #%d", prefix, *sourceProject.Name, column, *destProject.Name, column, *relatedIssue.Number)
+				log.Infof("%s%s/%s -> %s/%s: #%d", prefix, *sourceProject.Name, column, *destProject.Name, column, *relatedIssue.Number)
 			}
 		}
 		transferCards(p2Cards)
 		transferCards(p1Cards)
 		transferCards(p0Cards)
 		transferCards(noPCards)
+		allCards, _, err := client.Projects.ListProjectCards(ctx, sourceColumnID, nil)
+		if err != nil {
+			log.Errorf("Error retrieving cards from column: %s", column)
+			os.Exit(1)
+		}
+		if len(allCards) > 0 {
+			log.Warnf("Not all project cards in column: %s deleted from project: %s", column, *sourceProjectName)
+		}
 	}
 }
 
@@ -190,5 +200,6 @@ func main() {
 		os.Exit(1)
 	}
 	log.Infof("Source project: %v, Dest Project: %v", *sourceProject.Name, *destProject.Name)
+	client.Projects.UpdateProject(ctx, *sourceProject.ID, &github.ProjectOptions{State: "closed"})
 	moveIssues(client, ctx, sourceProject, destProject, strings.Split(*columnsToMove, ","))
 }
