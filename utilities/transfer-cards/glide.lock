@@ -1,5 +1,5 @@
-hash: 5aea603ee6b132d0e3e8c26e56f617403fd799cca7500b09e957f3f208b20b47
-updated: 2017-09-23T00:01:54.443418813Z
+hash: 0ad79ddce7ac94ea62c0b22989d0de5b444e95312a5645472d38563d7c1e2bdb
+updated: 2017-10-05T19:09:33.855725838Z
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -12,7 +12,9 @@ imports:
   subpackages:
   - proto
 - name: github.com/google/go-github
-  version: 61bf8a6a2009b7fb88173ed454c77fb8013b8852
+  version: ef4752cb8e5e84093b25ba8ac46d7c0d20bb04d2
+  repo: https://github.com/seemethere/go-github.git
+  vcs: git
   subpackages:
   - github
 - name: github.com/google/go-querystring
@@ -22,20 +24,20 @@ imports:
 - name: github.com/sirupsen/logrus
   version: 89742aefa4b206dcf400792f3bd35b542998eb3b
 - name: golang.org/x/crypto
-  version: 7d9177d70076375b9a59c8fde23d52d9c4a7ecd5
+  version: 9419663f5a44be8b34ca85f08abc5fe1be11f8a3
   subpackages:
   - ssh/terminal
 - name: golang.org/x/net
-  version: 0744d001aa8470aaa53df28d32e5ceeb8af9bd70
+  version: a04bdaca5b32abe1c069418fb7088ae607de5bd0
   subpackages:
   - context
   - context/ctxhttp
 - name: golang.org/x/oauth2
-  version: 13449ad91cb26cb47661c1b080790392170385fd
+  version: bb50c06baba3d0c76f9d125c0719093e315b5b44
   subpackages:
   - internal
 - name: golang.org/x/sys
-  version: 429f518978ab01db8bb6f44b66785088e7fba58b
+  version: 314a259e304ff91bd6985da2a7149bbf91237993
   subpackages:
   - unix
   - windows
