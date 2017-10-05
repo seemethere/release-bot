@@ -329,13 +329,13 @@ func (mon *githubMonitor) handleUnlabelEvent(e *github.IssuesEvent, r *http.Requ
 		}
 		for _, card := range cards {
 			if *card.ContentURL == *e.Issue.URL {
-					cardID = *card.ID
-					_, err := mon.client.Projects.DeleteProjectCard(ctx, cardID)
-					if err != nil {
-						log.Error("%q", err)
-						return
-					}
+				cardID = *card.ID
+				_, err := mon.client.Projects.DeleteProjectCard(ctx, cardID)
+				if err != nil {
+					log.Error("%q", err)
 					return
+				}
+				return
 			}
 		}
 	}
@@ -368,7 +368,7 @@ func (mon *githubMonitor) handleProjectCreatedEvent(e *github.ProjectEvent, r *h
 		fmt.Sprintf("%s/cherry-picked", rc.ReplaceAllString(projectName, "")): "bfe5bf",
 	}
 	// TODO: Add body for label filtering
-	existingLabels, err := mon.allLabels(owner, name)
+	existingLabels, err := mon.allLabels(name, owner)
 	if err != nil {
 		log.Errorf("Could not grab existing labels for %s/%s: %v", owner, name, err)
 		return
