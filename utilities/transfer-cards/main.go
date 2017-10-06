@@ -138,22 +138,33 @@ func moveIssues(client *github.Client, ctx context.Context, sourceProject, destP
 				noPCards = append(noPCards, card)
 			}
 		}
-		transferCards := func(cards []*github.ProjectCard) {
+		deleteCards := func(cards []*github.ProjectCard) {
 			for _, card := range cards {
 				relatedIssue, err := getRelatedIssue(card, issues)
 				if err != nil {
 					log.Errorf("%v", err)
 					os.Exit(1)
 				}
-				prefix := "(dryrun) "
 				if !*dryrun {
-					prefix = ""
 					log.Debugf("Deleting project card for issue #%d from %s", *relatedIssue.Number, *sourceProjectName)
 					_, err = client.Projects.DeleteProjectCard(ctx, *card.ID)
 					if err != nil {
 						log.Errorf("Error deleting project card %d: %v", *relatedIssue.Number, err)
 						os.Exit(1)
 					}
+				}
+			}
+		}
+		createCards := func(cards []*github.ProjectCard) {
+			for _, card := range cards {
+				relatedIssue, err := getRelatedIssue(card, issues)
+				if err != nil {
+					log.Errorf("%v", err)
+					os.Exit(1)
+				}
+				prefix := "(dryrun)"
+				if !*dryrun {
+					prefix = ""
 					log.Debugf("Creating new project card for issue #%d in %s", *relatedIssue.Number, *destProjectName)
 					_, resp, err := client.Projects.CreateProjectCard(ctx, destColumnID, &github.ProjectCardOptions{ContentID: *relatedIssue.ID, ContentType: "Issue"})
 					if resp.StatusCode != 402 && err != nil {
@@ -163,18 +174,14 @@ func moveIssues(client *github.Client, ctx context.Context, sourceProject, destP
 				log.Infof("%s%s/%s -> %s/%s: #%d", prefix, *sourceProject.Name, column, *destProject.Name, column, *relatedIssue.Number)
 			}
 		}
-		transferCards(p2Cards)
-		transferCards(p1Cards)
-		transferCards(p0Cards)
-		transferCards(noPCards)
-		allCards, _, err := client.Projects.ListProjectCards(ctx, sourceColumnID, nil)
-		if err != nil {
-			log.Errorf("Error retrieving cards from column: %s", column)
-			os.Exit(1)
-		}
-		if len(allCards) > 0 {
-			log.Warnf("Not all project cards in column: %s deleted from project: %s", column, *sourceProjectName)
-		}
+		deleteCards(p2Cards)
+		deleteCards(p1Cards)
+		deleteCards(p0Cards)
+		deleteCards(noPCards)
+		createCards(p2Cards)
+		createCards(p1Cards)
+		createCards(p0Cards)
+		createCards(noPCards)
 	}
 }
 
@@ -200,6 +207,8 @@ func main() {
 		os.Exit(1)
 	}
 	log.Infof("Source project: %v, Dest Project: %v", *sourceProject.Name, *destProject.Name)
-	client.Projects.UpdateProject(ctx, *sourceProject.ID, &github.ProjectOptions{State: "closed"})
+	if !*dryrun {
+		client.Projects.UpdateProject(ctx, *sourceProject.ID, &github.ProjectOptions{State: "closed"})
+	}
 	moveIssues(client, ctx, sourceProject, destProject, strings.Split(*columnsToMove, ","))
 }
