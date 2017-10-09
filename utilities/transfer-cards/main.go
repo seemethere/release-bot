@@ -167,8 +167,15 @@ func moveIssues(client *github.Client, ctx context.Context, sourceProject, destP
 					prefix = ""
 					log.Debugf("Creating new project card for issue #%d in %s", *relatedIssue.Number, *destProjectName)
 					_, resp, err := client.Projects.CreateProjectCard(ctx, destColumnID, &github.ProjectCardOptions{ContentID: *relatedIssue.ID, ContentType: "Issue"})
-					if resp.StatusCode != 402 && err != nil {
-						log.Errorf("Error creating project card for issue #%d: %v", *relatedIssue.Number, err)
+					if err != nil {
+						switch resp.StatusCode {
+						case 402:
+							break
+						case 422:
+							log.Warnf("Could not create project card for issue #%d: Issue already exists in project", *relatedIssue.Number)
+						default:
+							log.Errorf("Error creating project card for issue #%d: %v", *relatedIssue.Number, err)
+						}
 					}
 				}
 				log.Infof("%s%s/%s -> %s/%s: #%d", prefix, *sourceProject.Name, column, *destProject.Name, column, *relatedIssue.Number)
