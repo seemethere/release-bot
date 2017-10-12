@@ -1,5 +1,5 @@
 hash: 0ad79ddce7ac94ea62c0b22989d0de5b444e95312a5645472d38563d7c1e2bdb
-updated: 2017-10-05T19:09:33.855725838Z
+updated: 2017-10-12T23:03:39.461468897Z
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -37,12 +37,12 @@ imports:
   subpackages:
   - internal
 - name: golang.org/x/sys
-  version: 314a259e304ff91bd6985da2a7149bbf91237993
+  version: 43eea11bc92608addb41b8a406b0407495c106f6
   subpackages:
   - unix
   - windows
 - name: google.golang.org/appengine
-  version: 24e4144ec923c2374f6b06610c0df16a9222c3d9
+  version: a2e0dc829727a4f957a7428b1f322805cfc1f362
   subpackages:
   - internal
   - internal/base
