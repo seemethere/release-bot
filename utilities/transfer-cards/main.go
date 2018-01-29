@@ -27,9 +27,7 @@ var (
 func getProject(client *github.Client, ctx context.Context, projectName string, source bool) (*github.Project, error) {
 	log.Debugf("Attempting to find project %s for repo %s/%s", projectName, *repoOwner, *repoName)
 
-	var getProjectErr error
 	var project *github.Project
-	project = nil
 
 	opt := &github.ProjectListOptions{State: "all"}
 	for {
@@ -55,23 +53,19 @@ func getProject(client *github.Client, ctx context.Context, projectName string, 
 	}
 	// if this is a dry run do not create the project
 	if *dryrun {
-		return nil, fmt.Errorf("project '%s' not found in repo %s/%s if you would like the utility to create the project rerun without the dryrun option\n", projectName, *repoOwner, *repoName)
+		return nil, fmt.Errorf("project '%s' not found in repo %s/%s if you would like the utility to create the project rerun without the dryrun option", projectName, *repoOwner, *repoName)
 	}
 
-	// if project was not found try creating the project
-	if getProjectErr != nil || project == nil {
-		log.Print("Project not found creating project\n")
-		project, createProjectErr := createProject(client, ctx, projectName)
-		if createProjectErr != nil {
-			return nil, createProjectErr
-		} else {
-			log.Print("Project creation successful\n")
-			return project, nil
-		}
+	// the project was not found so try creating the project
+	log.Info("Project not found creating project")
+	project, createProjectErr := createProject(client, ctx, projectName)
+	if createProjectErr != nil {
+		return nil, createProjectErr
 	} else {
-
+		log.Info("Project creation successful")
 		return project, nil
 	}
+
 }
 
 // When a project is created the release bot needs to add project columns (triage, cherry-pick, and
@@ -80,11 +74,8 @@ func releaseBotDone(client *github.Client, ctx context.Context, projectID int) (
 	columnsLength := 0
 	retries := 1
 
-	for {
-		log.Printf("Release bot progress: retries %d project columns:  %d\n", retries, columnsLength)
-		if retries == 3 || columnsLength == 3 {
-			break
-		}
+	for retries < 4 && columnsLength != 3 {
+		log.Infof("Release bot progress: retries: %d, project columns:  %d", retries, columnsLength)
 
 		columns, _, err := client.Projects.ListProjectColumns(context.Background(), projectID, &github.ListOptions{})
 		if err != nil {
@@ -104,23 +95,18 @@ func releaseBotDone(client *github.Client, ctx context.Context, projectID int) (
 }
 
 func createProject(client *github.Client, ctx context.Context, projectName string) (*github.Project, error) {
-	opt := &github.ProjectOptions{State: "all"}
-	opt.Name = projectName
-	opt.State = "open"
+	opt := &github.ProjectOptions{State: "all", Name: projectName, Body: ""}
 	info := strings.Split(projectName, "-") //ex. 18.02.0-ce-rc2 -> [18.02.0, ce, rc2]
-	var body string
-	body = ""
 	if len(info) == 3 {
-		body = fmt.Sprintf(`Docker %s %s %s release`, info[0], strings.ToUpper(info[1]), strings.ToUpper(info[2]))
+		opt.Body = fmt.Sprintf(`Docker %s %s %s release`, info[0], strings.ToUpper(info[1]), strings.ToUpper(info[2]))
 	}
-	opt.Body = body
 	project, _, err := client.Repositories.CreateProject(ctx, *repoOwner, *repoName, opt)
 	if err != nil {
-		return nil, fmt.Errorf("Project '%s' failed to create project\n", projectName)
+		return nil, fmt.Errorf("Project '%s' failed to create project", projectName)
 	}
 
 	// Wait for release-bot to add triage, cherry-pick and cherry-picked labels
-	log.Print("Checking that the release bot has created the necessary project cards\n")
+	log.Info("Checking that the release bot has created the necessary project cards")
 	releaseBotFinished, err := releaseBotDone(client, ctx, *project.ID)
 	if err != nil {
 		return nil, err
