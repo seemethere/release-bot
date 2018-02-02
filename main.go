@@ -21,7 +21,7 @@ var (
 	webhookSecretEnvVariable = "RELEASE_BOT_WEBHOOK_SECRET"
 	githubTokenEnvVariable   = "RELEASE_BOT_GITHUB_TOKEN"
 	debugModeEnvVariable     = "RELEASE_BOT_DEBUG"
-	rc                       = regexp.MustCompile("-rc.*$")
+	test                     = regexp.MustCompile("-(rc|tp|beta).*$")
 )
 
 type githubMonitor struct {
@@ -363,9 +363,9 @@ func (mon *githubMonitor) handleProjectCreatedEvent(e *github.ProjectEvent, r *h
 	}
 	// Creates labels like 17.06.1-ee-1/triage from project names like 17.06.1-ee-1-rc3
 	labelsToCreate := map[string]string{
-		fmt.Sprintf("%s/triage", rc.ReplaceAllString(projectName, "")):        "eeeeee",
-		fmt.Sprintf("%s/cherry-pick", rc.ReplaceAllString(projectName, "")):   "a98bf3",
-		fmt.Sprintf("%s/cherry-picked", rc.ReplaceAllString(projectName, "")): "bfe5bf",
+		fmt.Sprintf("%s/triage", test.ReplaceAllString(projectName, "")):        "eeeeee",
+		fmt.Sprintf("%s/cherry-pick", test.ReplaceAllString(projectName, "")):   "a98bf3",
+		fmt.Sprintf("%s/cherry-picked", test.ReplaceAllString(projectName, "")): "bfe5bf",
 	}
 	// TODO: Add body for label filtering
 	existingLabels, err := mon.allLabels(name, owner)
@@ -396,7 +396,7 @@ func (mon *githubMonitor) handleProjectCardDeletedEvent(e *github.ProjectCardEve
 		log.Errorf("Error getting project related to card: %v", err)
 		return
 	}
-	labelPrefix := rc.ReplaceAllString(*project.Name, "")
+	labelPrefix := test.ReplaceAllString(*project.Name, "")
 	issueBits := strings.Split(*e.ProjectCard.ContentURL, "/")
 	issueNum, err := strconv.Atoi(issueBits[len(issueBits)-1])
 	if err != nil {
@@ -404,9 +404,9 @@ func (mon *githubMonitor) handleProjectCardDeletedEvent(e *github.ProjectCardEve
 		return
 	}
 	// Creates labels like 17.06.1-ee-1/triage from project names like 17.06.1-ee-1-rc3
-	labelsToDelete := map[string] bool{
-		fmt.Sprintf("%s/triage", labelPrefix): true,
-		fmt.Sprintf("%s/cherry-pick", labelPrefix): true,
+	labelsToDelete := map[string]bool{
+		fmt.Sprintf("%s/triage", labelPrefix):        true,
+		fmt.Sprintf("%s/cherry-pick", labelPrefix):   true,
 		fmt.Sprintf("%s/cherry-picked", labelPrefix): true,
 	}
 	issueLabels, _, err := mon.client.Issues.ListLabelsByIssue(ctx, *e.Repo.Owner.Login, *e.Repo.Name, issueNum, nil)
@@ -439,7 +439,7 @@ func (mon *githubMonitor) handleProjectCardChangedEvent(e *github.ProjectCardEve
 		log.Errorf("Error getting project related to card %s", *e.ProjectCard.URL)
 		return
 	}
-	labelPrefix := rc.ReplaceAllString(*project.Name, "")
+	labelPrefix := test.ReplaceAllString(*project.Name, "")
 	labelsToDelete := []string{
 		fmt.Sprintf("%s/triage", labelPrefix),
 		fmt.Sprintf("%s/cherry-pick", labelPrefix),
