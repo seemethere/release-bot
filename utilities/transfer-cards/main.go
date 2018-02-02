@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/github"
-	"github.com/seemethere/release-bot/utilities/createProject/cmd"
+	"github.com/seemethere/release-bot/utilities/create-project/cmd"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -27,8 +27,6 @@ var (
 
 func getProject(client *github.Client, ctx context.Context, projectName string, source bool) (*github.Project, error) {
 	log.Debugf("Attempting to find project %s for repo %s/%s", projectName, *repoOwner, *repoName)
-
-	//var project *github.Project
 
 	opt := &github.ProjectListOptions{State: "all"}
 	for {
