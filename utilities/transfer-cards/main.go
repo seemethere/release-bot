@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/github"
+	"github.com/seemethere/release-bot/utilities/createProject/cmd"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -27,7 +28,7 @@ var (
 func getProject(client *github.Client, ctx context.Context, projectName string, source bool) (*github.Project, error) {
 	log.Debugf("Attempting to find project %s for repo %s/%s", projectName, *repoOwner, *repoName)
 
-	var project *github.Project
+	//var project *github.Project
 
 	opt := &github.ProjectListOptions{State: "all"}
 	for {
@@ -58,10 +59,19 @@ func getProject(client *github.Client, ctx context.Context, projectName string, 
 
 	// the project was not found so try creating the project
 	log.Info("Project not found creating project")
-	project, createProjectErr := createProject(client, ctx, projectName)
+	project, createProjectErr := cmd.CreateProject(client, ctx, projectName, *repoOwner, *repoName)
 	if createProjectErr != nil {
 		return nil, createProjectErr
 	} else {
+		log.Info("Checking that the release bot has created the necessary project cards")
+		releaseBotFinished, err := releaseBotDone(client, ctx, *project.ID)
+		if err != nil {
+			return nil, err
+		} else if releaseBotFinished {
+			return project, nil
+		} else {
+			return nil, fmt.Errorf("The release bot did not create the expected project columns")
+		}
 		log.Info("Project creation successful")
 		return project, nil
 	}
@@ -91,29 +101,6 @@ func releaseBotDone(client *github.Client, ctx context.Context, projectID int) (
 		return true, nil
 	} else {
 		return false, nil
-	}
-}
-
-func createProject(client *github.Client, ctx context.Context, projectName string) (*github.Project, error) {
-	opt := &github.ProjectOptions{State: "all", Name: projectName, Body: ""}
-	info := strings.Split(projectName, "-") //ex. 18.02.0-ce-rc2 -> [18.02.0, ce, rc2]
-	if len(info) == 3 {
-		opt.Body = fmt.Sprintf(`Docker %s %s %s release`, info[0], strings.ToUpper(info[1]), strings.ToUpper(info[2]))
-	}
-	project, _, err := client.Repositories.CreateProject(ctx, *repoOwner, *repoName, opt)
-	if err != nil {
-		return nil, fmt.Errorf("Project '%s' failed to create project", projectName)
-	}
-
-	// Wait for release-bot to add triage, cherry-pick and cherry-picked labels
-	log.Info("Checking that the release bot has created the necessary project cards")
-	releaseBotFinished, err := releaseBotDone(client, ctx, *project.ID)
-	if err != nil {
-		return nil, err
-	} else if releaseBotFinished {
-		return project, nil
-	} else {
-		return nil, fmt.Errorf("The release bot did not create the expected project columns")
 	}
 }
 
