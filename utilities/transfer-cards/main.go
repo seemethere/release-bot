@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
@@ -23,15 +24,17 @@ var (
 	verbose                = kingpin.Flag("verbose", "See debug statements").Short('v').Bool()
 )
 
-func getProject(client *github.Client, ctx context.Context, projectName string) (*github.Project, error) {
+func getProject(client *github.Client, ctx context.Context, projectName string, source bool) (*github.Project, error) {
 	log.Debugf("Attempting to find project %s for repo %s/%s", projectName, *repoOwner, *repoName)
+
+	var project *github.Project
 
 	opt := &github.ProjectListOptions{State: "all"}
 	for {
-		projects, resp, err := client.Repositories.ListProjects(ctx, *repoOwner, *repoName, opt)
-		if err != nil {
-			log.Errorf("Could not grab existing projects for %s/%s: %v", *repoOwner, *repoName, err)
-			os.Exit(1)
+		projects, resp, getProjectErr := client.Repositories.ListProjects(ctx, *repoOwner, *repoName, opt)
+		if getProjectErr != nil {
+			log.Errorf("Could not grab existing projects for %s/%s: %v", *repoOwner, *repoName, getProjectErr)
+			break
 		}
 		for _, project := range projects {
 			if *project.Name == projectName {
@@ -43,7 +46,75 @@ func getProject(client *github.Client, ctx context.Context, projectName string) 
 		}
 		opt.Page = resp.NextPage
 	}
-	return nil, fmt.Errorf("project '%s' not found in repo %s/%s", projectName, *repoOwner, *repoName)
+
+	// don't want to create a project if the project is a source project
+	if source {
+		return nil, fmt.Errorf("project '%s' not found in repo %s/%s", projectName, *repoOwner, *repoName)
+	}
+	// if this is a dry run do not create the project
+	if *dryrun {
+		return nil, fmt.Errorf("project '%s' not found in repo %s/%s if you would like the utility to create the project rerun without the dryrun option", projectName, *repoOwner, *repoName)
+	}
+
+	// the project was not found so try creating the project
+	log.Info("Project not found creating project")
+	project, createProjectErr := createProject(client, ctx, projectName)
+	if createProjectErr != nil {
+		return nil, createProjectErr
+	} else {
+		log.Info("Project creation successful")
+		return project, nil
+	}
+
+}
+
+// When a project is created the release bot needs to add project columns (triage, cherry-pick, and
+// cherry-picked) to the project. The transfer card utility should not progress until the release-bot is done
+func releaseBotDone(client *github.Client, ctx context.Context, projectID int) (bool, error) {
+	columnsLength := 0
+	retries := 1
+
+	for retries < 4 && columnsLength != 3 {
+		log.Infof("Release bot progress: retries: %d, project columns:  %d", retries, columnsLength)
+
+		columns, _, err := client.Projects.ListProjectColumns(context.Background(), projectID, &github.ListOptions{})
+		if err != nil {
+			return false, err
+		}
+		columnsLength = len(columns)
+		retries += 1
+
+		time.Sleep(5 * time.Second)
+	}
+
+	if columnsLength == 3 {
+		return true, nil
+	} else {
+		return false, nil
+	}
+}
+
+func createProject(client *github.Client, ctx context.Context, projectName string) (*github.Project, error) {
+	opt := &github.ProjectOptions{State: "all", Name: projectName, Body: ""}
+	info := strings.Split(projectName, "-") //ex. 18.02.0-ce-rc2 -> [18.02.0, ce, rc2]
+	if len(info) == 3 {
+		opt.Body = fmt.Sprintf(`Docker %s %s %s release`, info[0], strings.ToUpper(info[1]), strings.ToUpper(info[2]))
+	}
+	project, _, err := client.Repositories.CreateProject(ctx, *repoOwner, *repoName, opt)
+	if err != nil {
+		return nil, fmt.Errorf("Project '%s' failed to create project", projectName)
+	}
+
+	// Wait for release-bot to add triage, cherry-pick and cherry-picked labels
+	log.Info("Checking that the release bot has created the necessary project cards")
+	releaseBotFinished, err := releaseBotDone(client, ctx, *project.ID)
+	if err != nil {
+		return nil, err
+	} else if releaseBotFinished {
+		return project, nil
+	} else {
+		return nil, fmt.Errorf("The release bot did not create the expected project columns")
+	}
 }
 
 func getColumnID(columnToFind string, columnHaystack []*github.ProjectColumn) (int, error) {
@@ -203,12 +274,12 @@ func main() {
 		&oauth2.Token{AccessToken: os.Getenv(githubTokenEnvVariable)},
 	)
 	client := github.NewClient(oauth2.NewClient(ctx, ts))
-	sourceProject, err := getProject(client, ctx, *sourceProjectName)
+	sourceProject, err := getProject(client, ctx, *sourceProjectName, true)
 	if err != nil {
 		log.Errorf("Source %v", err)
 		os.Exit(1)
 	}
-	destProject, err := getProject(client, ctx, *destProjectName)
+	destProject, err := getProject(client, ctx, *destProjectName, false)
 	if err != nil {
 		log.Errorf("Destination %v", err)
 		os.Exit(1)
