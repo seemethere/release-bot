@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/google/go-github/github"
-	"github.com/seemethere/release-bot/utilities/createProject/cmd"
+	"github.com/seemethere/release-bot/utilities/create-project/cmd"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 	"gopkg.in/alecthomas/kingpin.v2"

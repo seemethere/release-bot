@@ -1,4 +1,4 @@
-PROJECT_DIR=/go/src/github.com/seemethere/release-bot/utilities/createProject
+PROJECT_DIR=/go/src/github.com/seemethere/release-bot/utilities/create-project
 DOCKER_RUN=docker run --rm -v "$(CURDIR)":"$(PROJECT_DIR)" -w "$(PROJECT_DIR)"
 
 all: build
@@ -16,4 +16,4 @@ build:
 
 .PHONY: build-image
 build-image:
-	docker build -t seemethere/createProject .
+	docker build -t seemethere/create-project .
