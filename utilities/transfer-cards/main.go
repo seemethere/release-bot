@@ -152,6 +152,24 @@ func allIssues(client *github.Client, ctx context.Context) ([]*github.Issue, err
 	return issues, nil
 }
 
+func getCards(client *github.Client, ctx context.Context, sourceColumnID int) ([]*github.ProjectCard, error) {
+	opt := &github.ListOptions{}
+	var cards []*github.ProjectCard
+	for {
+		sourceCardsByPage, resp, err := client.Projects.ListProjectCards(ctx, sourceColumnID, opt)
+		if err != nil {
+			return nil, err
+		}
+
+		cards = append(cards, sourceCardsByPage...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	return cards, nil
+}
+
 func moveIssues(client *github.Client, ctx context.Context, sourceProject, destProject *github.Project, columns []string) {
 	sourceColumns, _, err := client.Projects.ListProjectColumns(ctx, *sourceProject.ID, nil)
 	if err != nil {
@@ -180,7 +198,7 @@ func moveIssues(client *github.Client, ctx context.Context, sourceProject, destP
 			log.Errorf("Destination %v", err)
 			os.Exit(1)
 		}
-		sourceCards, _, err := client.Projects.ListProjectCards(ctx, sourceColumnID, nil)
+		sourceCards, err := getCards(client, ctx, sourceColumnID)
 		if err != nil {
 			log.Errorf("Error retrieving source project cards")
 			os.Exit(1)
