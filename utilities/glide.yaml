@@ -1,0 +1,11 @@
+package: github.com/seemethere/release-bot/utilities
+import:
+- package: github.com/google/go-github
+  vcs: git
+  repo: https://github.com/seemethere/go-github.git
+  version: ef4752cb8e5e84093b25ba8ac46d7c0d20bb04d2
+  subpackages:
+  - github
+- package: github.com/sirupsen/logrus
+- package: golang.org/x/oauth2
+- package: gopkg.in/alecthomas/kingpin.v2

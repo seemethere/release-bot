@@ -1,8 +1,0 @@
-package: github.com/seemethere/release-bot/utilities/transfer-cards
-import:
-- package: gopkg.in/alecthomas/kingpin.v2
-  version: ~2.2.5
-- package: github.com/google/go-github
-  vcs: git
-  repo: https://github.com/seemethere/go-github.git
-  version: ef4752cb8e5e84093b25ba8ac46d7c0d20bb04d2
